@@ -10,19 +10,24 @@ import copy
 
 pp = pprint.PrettyPrinter()
 
-def get_images(image_paths, idx_range, is_crop = True, crop_mode = 'random', bboxes = None,  resize_h = 224, resize_w = None, is_grayscale = False):
+def get_images(image_paths, idx_range, is_crop = True, crop_mode = 'random', resize_h = 224, resize_w = None, is_grayscale = False):
     resize_w = resize_h if resize_w is None else resize_w
     
     image_paths = image_paths.flatten()
     image_paths_batch = np.take(image_paths, idx_range, axis = 0)
-    bboxes_batch = np.take(bboxes, idx_range, axis = 0)
     
     images = []
     for i in np.arange(len(image_paths_batch)):
         image_path = image_paths_batch[i]
         #print '[file name]', image_path
-        bbox = bboxes_batch[i]
-        images.extend([get_image(image_path, is_crop, crop_mode, bbox, resize_h, resize_w, is_grayscale)])
+        if not os.path.isfile(image_path):
+            continue
+            
+        image = imread(image_path, is_grayscale)
+        if image is None:
+            continue
+            
+        images.extend([augment(image, is_crop, crop_mode, resize_h, resize_w)])
         
     if is_grayscale:
         images = np.array(images).astype(np.float32)[:, :, :, None]
@@ -31,17 +36,20 @@ def get_images(image_paths, idx_range, is_crop = True, crop_mode = 'random', bbo
 
     return images
     
-def get_image(image_path, is_crop, crop_mode, bbox, resize_h, resize_w, is_grayscale):
-    return augment(imread(image_path, is_grayscale), is_crop, crop_mode, bbox, resize_h, resize_w)
-
 def save_images(images, size, image_path):
     return imsave(images, size, image_path)
 
 def imread(path, is_grayscale = False):
     if is_grayscale:
-        return scipy.misc.imread(path, flatten = True).astype(np.float)
+        try:
+            return scipy.misc.imread(path, flatten = True).astype(np.float)
+        except:
+            return None
     else:
-        return scipy.misc.imread(path, mode = 'RGB').astype(np.float)
+        try:
+            return scipy.misc.imread(path, mode = 'RGB').astype(np.float)
+        except:
+            return None
 
 def merge(images, size):
     h, w = images.shape[1], images.shape[2]
@@ -63,74 +71,6 @@ def center_crop(x, crop_h, crop_w, resize_h, resize_w):
     
     return scipy.misc.imresize(x[start_idx[0]:end_idx[0], start_idx[1]:end_idx[1]], [resize_h, resize_w])
 
-def random_center_crop(x, npx, bbox, resize_h, resize_w):
-    # bbox = [x-left, y-top, width, height]
-    # 1. find bbox coordinates
-    img_h, img_w = x.shape[:2]
-    bbox_x = bbox[0]
-    bbox_y = bbox[1]
-    bbox_w = bbox[2]
-    bbox_h = bbox[3]
-
-    # 1-1. edit offlined bbox width or height
-    if bbox_x + bbox_w > img_w:
-        dist = (bbox_x + bbox_w) - img_w
-        bbox_w -= dist
-    if bbox_y + bbox_h > img_h:
-        dist = (bbox_y + bbox_h) - img_h
-        bbox_h -= dist
-
-    # 2. find crop window which satisfy the ratio
-    ratio = np.random.uniform(low = 0.75, high = 0.9)
-    crop_h = crop_w = int(np.sqrt((bbox_w * bbox_h) / ratio))
-    
-    # 2-1. make sure it is bigger than bbox and smaller than the image
-    if crop_h < bbox_w or crop_h < bbox_h:
-        #print"**[Crop Box] smaller than bbox!!!"
-        crop_h = crop_w = bbox_w if bbox_w > bbox_h else bbox_h
-
-    if crop_h > npx:
-        #print"**crop box bigger than image!!!"
-        # augment & return
-        return scipy.misc.imresize(x, [resize_h, resize_w])
-        
-    # 3. find the crop offset which satisfies the bounding problem
-    # 3-1. find the possible crop range
-    crop_xmin = max(0, bbox_x + bbox_w - crop_w)
-    crop_xmax = min(bbox_x, img_w - crop_w)
-    crop_x_dist = abs(crop_xmax - crop_xmin)
-    crop_ymin = max(0, bbox_y + bbox_h - crop_h)
-    crop_ymax = min(bbox_y, img_h - crop_h)
-    crop_y_dist = abs(crop_ymax - crop_ymin)
-
-    # 3-2. select the offset from normal distribution
-    rand = np.random.normal(loc=0.5, scale=0.1)
-    rand = 0.0 if rand < 0 else 1.0 if rand > 1.0 else rand
-    crop_x = int(min(crop_xmin,crop_xmax) + crop_x_dist * rand)
-    
-    rand = np.random.normal(loc=0.5, scale=0.1)
-    rand = 0.0 if rand < 0 else 1.0 if rand > 1.0 else rand
-    crop_y = int(min(crop_ymin, crop_ymax) + crop_y_dist * rand)
-    
-    '''
-    print '********************************* SUM *********************************'
-    print '[img]', 'width:', img_w, ', height:', img_h
-    print '[ratio]', 'expected: ', ratio, ', actual: ', (bbox_w * bbox_h)/ (crop_w * crop_h)
-    print '[bbox]', 'x:', bbox_x, ', y:', bbox_y, ', w:', bbox_w, ', h:', bbox_h
-    print '[crop_range]', 'xmin:', crop_xmin, ', xmax:', crop_xmax, ', ymin:', crop_ymin, ', ymax:', crop_ymax, ', xdist:', crop_x_dist, ', ydist:', crop_y_dist
-    print '[crop_box]', 'x:', crop_x, ', y:', crop_y, ', w:', crop_w, ', h:', crop_h
-    print '********************************* SUM *********************************'
-    '''
-    # 4. crop
-    x = x[crop_y:crop_y + crop_h, crop_x:crop_x + crop_w]
-    
-    # 5. randomly flips the image
-    rand = np.random.normal(loc=0.5, scale=0.5)
-    rand = 0.0 if rand < 0 else 1.0 if rand > 1.0 else rand
-    x = np.flip(x, 1) if rand > 0.5 else x
-    
-    return scipy.misc.imresize(x, [resize_h, resize_w])
-
 def random_crop(x, crop_h, crop_w, resize_h, resize_w):
     rand = np.random.normal(loc=0.5, scale=0.5)
     rand = 0.0 if rand < 0 else 1.0 if rand > 1.0 else rand
@@ -143,7 +83,7 @@ def random_crop(x, crop_h, crop_w, resize_h, resize_w):
     
     return scipy.misc.imresize(x[start_idx[0]:end_idx[0], start_idx[1]:end_idx[1]], [resize_h, resize_w])
         
-def augment(image, is_crop, crop_mode, bbox, resize_h, resize_w):
+def augment(image, is_crop, crop_mode, resize_h, resize_w):
     # npx : # of pixels width/height of image
     h, w = image.shape[:2]
     npx = w if h > w else h
@@ -153,10 +93,8 @@ def augment(image, is_crop, crop_mode, bbox, resize_h, resize_w):
             image = random_crop(image, npx, npx, resize_h, resize_w)
         elif crop_mode is 'center':
             image = center_crop(image, npx, npx, resize_h, resize_w)
-        elif crop_mode is 'random_bbox':
-            image = random_center_crop(image, npx, bbox, resize_h, resize_w)
     else:
-        image = image
+        image = scipy.misc.imresize(image, [resize_h, resize_w])
 
     # normalize between range
     '''
@@ -246,6 +184,16 @@ def get_learning_rate(lr, epoch, counter, decay_steps, decay_rate):
 
 def get_time_str(format='%g%m%d_%H%M'):
     return datetime.datetime.now().strftime(format)
+
+def criterion(name):
+    if 'mse' in name:
+        return mse_criterion
+    elif 'sce' in name:
+        return sce_criterion
+    elif 'abs' in name:
+        return abs_criterion
+    elif 'sfce' in name:
+        return sfce_criterion
 
 def abs_criterion(logits, labels, name = 'abs_criterion'):
     return tf.reduce_mean(tf.abs(logits - labels), name = name)
