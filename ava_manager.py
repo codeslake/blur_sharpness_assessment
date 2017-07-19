@@ -42,3 +42,6 @@ class AVAManager(object):
         #set original data
         self.data['filenames'] = filenames
         self.data['scores'] = scores
+        
+        print "[" + self.image_file_name + "] " + str(filenames.shape[0])
+        print "[" + self.score_file_name + "] " + str(scores.shape[0])

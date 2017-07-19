@@ -31,7 +31,7 @@ class DeConvNET(object):
         logger.info('Loading Data...')
         self.embedding_dim = 1024
         self.augment_dim = int(self.embedding_dim / 8)
-        self.get_data_train = (AVAManager('/data1/AVA', config.type)).get_data
+        self.get_data_train = (AVAManager('/data1/AVA', config.type, train = True)).get_data
         self.get_data_val = (AVAManager('/data1/AVA', config.type, train = False)).get_data
         logger.info('Loading Data...Done!')
 
@@ -73,10 +73,9 @@ class DeConvNET(object):
     
     def build_loss(self):
         logger.info('Initializing LOSS...')
-
         # regressor loss
         with tf.variable_scope('R_loss'):
-            self.r_loss = self.criterion(logits = self.scores_pred, labels = self.scores_expt, name = self.summaryManager.get_sum_marked_name('3_r_sharp_loss'))
+            self.r_loss = self.criterion(logits = self.scores_pred, labels = self.scores_expt, name = self.summaryManager.get_sum_marked_name('1_r_loss'))
     
         logger.info('Initializing LOSS... DONE\n')
         
@@ -112,7 +111,7 @@ class DeConvNET(object):
     def build_summary(self):
         logger.info('Initializing Summary ...')
         self.itm_sum = self.summaryManager.get_merged_summary() # images, histograms
-        self.r_loss_sum = self.summaryManager.get_merged_summary(self.r_vars, grad_norm = get_grads_norm(self.grad_and_vars_r), name = 'R_sum')
+        self.r_loss_sum = self.summaryManager.get_merged_summary(self.r_vars, grad_norm = get_grads_norm(self.grad_and_vars_r), name = 'R_loss')
         logger.info('Initializing Summary ... DONE\n')
         
     def build_saver(self, vars):
