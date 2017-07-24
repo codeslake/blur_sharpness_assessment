@@ -249,6 +249,40 @@ class DeConvNET(object):
             logits = tf.reshape(h4, [self.config.batch_size, -1])
         
             return logits
+
+    def sampler(self, input, bn_train_phase, scope = 'Regressor', reuse = False):
+        with tf.variable_scope(scope) as scope:
+            if reuse:
+                scope.reuse_variables()
+        
+            h0 = conv2d(input, self.config.df_dim, name = 'h0_conv_0')
+            h0 = lrelu(self.r_bn0(h0, train = False))
+            h0 = tf.nn.avg_pool(h0, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_2') #112
+        
+            h1 = conv2d(h0, self.config.df_dim * 2, name = 'h1_conv_0')
+            h1 = lrelu(self.r_bn1(h1, train = False))
+            h1 = tf.nn.avg_pool(h1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h1_pool_2') #56
+        
+            h2 = conv2d(h1, self.config.df_dim * 4, name = 'h2_conv_0')
+            h2 = lrelu(self.r_bn2(h2, train = False))
+            h2 = tf.nn.avg_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h2_pool_2') #28
+        
+            h3 = conv2d(h2, self.config.df_dim * 8, name = 'h3_conv_0')
+            h3 = lrelu(self.r_bn2(h3, train = False))
+            h3 = tf.nn.avg_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_2') #14
+        
+            h4 = conv2d(h3, self.config.df_dim * 8, name = 'h4_conv_0')
+            h4 = lrelu(self.r_bn4(h4, train = False))
+            image_embeddings = tf.nn.avg_pool(h4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h4_pool_2') #7
+        
+            image_embeddings_h, image_embeddings_w = image_embeddings.get_shape().as_list()[1:3]
+            h4 = lrelu(conv2d(image_embeddings, self.config.dfc_dim, k_h = image_embeddings_h, k_w = image_embeddings_w, padding = 'VALID', name = 'h4_linear_0'))
+            h4 = lrelu(conv2d(h4, self.config.dfc_dim, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_1'))
+            h4 = conv2d(h4, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_2')
+            h4 = tf.sigmoid(h4)
+            logits = tf.reshape(h4, [self.config.batch_size, -1])
+        
+            return logits
         
     def get_data(self, data_paths, size = None):
         filenames, captions, bboxes, filenames_wrong, bboxes_wrong = self.cubManager.get_captions(data_paths[0], data_paths[1], size)
