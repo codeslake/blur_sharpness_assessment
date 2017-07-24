@@ -66,7 +66,7 @@ class DeConvNET(object):
         ########## Regressor ##########
         logger.info('Initializing Regressor ...')
         with tf.variable_scope('Regressor') as scope:
-            self.scores_pred = self.regressor(self.images, bn_train_phase = self.bn_train_phase, scope = scope, reuse = False)
+            self.logits_pred, self.scores_pred = self.regressor(self.images, bn_train_phase = self.bn_train_phase, scope = scope, reuse = False)
         logger.info('Initializing Discriminator... DONE')
         
         logger.info('Initializing NETWORK... DONE\n')
@@ -75,7 +75,8 @@ class DeConvNET(object):
         logger.info('Initializing LOSS...')
         # regressor loss
         with tf.variable_scope('R_loss'):
-            self.r_loss = self.criterion(logits = self.scores_pred, labels = self.scores_expt, name = self.summaryManager.get_sum_marked_name('1_r_loss'))
+            self.r_loss = self.criterion(logits = self.logits_pred, labels = self.scores_expt, name = self.summaryManager.get_sum_marked_name('1_r_loss'))
+            #self.r_loss = self.criterion(logits = self.scores_pred, labels = self.scores_expt, name = self.summaryManager.get_sum_marked_name('1_r_loss'))
     
         logger.info('Initializing LOSS... DONE\n')
         
@@ -96,6 +97,17 @@ class DeConvNET(object):
         logger.info('Initializing SUMMARY VARIABLE...')
         with tf.variable_scope('input'):
             self.summaryManager.add_image_sum(self.images, 'input')
+            labels = tf.constant([['score_expt'],['score_pred'],['logits_pred']], tf.string)
+            score_expt = tf.transpose(self.scores_expt, perm = [1, 0])
+            score_pred = tf.transpose(self.scores_pred, perm = [1, 0])
+            logits_pred = tf.transpose(self.logits_pred, perm = [1, 0])
+            #concatenated = tf.concat(labels, tf.concat(score_expt, tf.concat(score_pred, logits_pred, 0), 0), 1)
+            concatenated = tf.concat([labels, tf.as_string(tf.concat([score_expt, tf.concat([score_pred, logits_pred], 0)], 0), precision = -3)], 1)
+            
+            self.summaryManager.add_text_sum(concatenated, 'outputs')
+            #self.summaryManager.add_text_sum(tf.as_string(tf.transpose(self.scores_expt, perm = [1, 0]), precision = -3), 'score_expt')
+            #self.summaryManager.add_text_sum(tf.as_string(tf.transpose(self.scores_pred, perm = [1, 0]), precision = -3), 'score_pred')
+            #self.summaryManager.add_text_sum(tf.as_string(tf.transpose(self.logits_pred, perm = [1, 0]), precision = -3), 'logits_pred')
     
         self.summaryManager.set_sum_vars(self.sess.graph)
         logger.info('Initializing SUMMARY VARIABLE... DONE')
@@ -214,34 +226,58 @@ class DeConvNET(object):
             if reuse:
                 scope.reuse_variables()
         
+            input = conv2d(input, self.config.df_dim, name = 'h0_input_0')
+            
             h0 = conv2d(input, self.config.df_dim, name = 'h0_conv_0')
-            h0 = lrelu(bnorm(h0, bn_train_phase, name = 'h0_bn_1'))
-            h0 = tf.nn.avg_pool(h0, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_2') #112
-        
+            h0 = bnorm(h0, bn_train_phase, name = 'h0_bn_1')
+            h0 = lrelu(h0, name = 'h0_relu_2')
+            h0 = conv2d(h0, self.config.df_dim, name = 'h0_conv_3')
+            h0 = bnorm(h0, bn_train_phase, name = 'h0_bn_4')
+            h0 = tf.add(h0, input, name = 'h0_add_5')
+            h0 = tf.nn.max_pool(h0, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 512 X 512 X 64
+            
+            h0 = conv2d(h0, self.config.df_dim * 2, name = 'h1_input_0')
+            
             h1 = conv2d(h0, self.config.df_dim * 2, name = 'h1_conv_0')
-            h1 = lrelu(bnorm(h1, bn_train_phase, name = 'h1_bn_1'))
-            h1 = tf.nn.avg_pool(h1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h1_pool_2') #56
-        
+            h1 = bnorm(h1, bn_train_phase, name = 'h1_bn_1')
+            h1 = lrelu(h1, name = 'h1_relu_2')
+            h1 = conv2d(h1, self.config.df_dim * 2, name = 'h1_conv_3')
+            h1 = bnorm(h1, bn_train_phase, name = 'h1_bn_4')
+            h1 = tf.add(h1, h0, name = 'h1_add_5')
+            h1 = tf.nn.max_pool(h1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h1_pool_6') # 256 X 256 X 128
+
+            h1 = conv2d(h1, self.config.df_dim * 4, name = 'h2_input_0')
+            
             h2 = conv2d(h1, self.config.df_dim * 4, name = 'h2_conv_0')
-            h2 = lrelu(bnorm(h2, bn_train_phase, name = 'h2_bn_1'))
-            h2 = tf.nn.avg_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h2_pool_2') #28
-        
+            h2 = bnorm(h2, bn_train_phase, name = 'h2_bn_1')
+            h2 = lrelu(h2, name = 'h2_relu_2')
+            h2 = conv2d(h2, self.config.df_dim * 4, name = 'h2_conv_3')
+            h2 = bnorm(h2, bn_train_phase, name = 'h2_bn_4')
+            h2 = tf.add(h2, h1, name = 'h2_add_5')
+            h2 = tf.nn.max_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 128 X 128 X 256
+
+            h2 = conv2d(h2, self.config.df_dim * 8, name = 'h3_input_0')
+            
             h3 = conv2d(h2, self.config.df_dim * 8, name = 'h3_conv_0')
-            h3 = lrelu(bnorm(h3, bn_train_phase, name = 'h3_bn_1'))
-            h3 = tf.nn.avg_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_2') #14
+            h3 = bnorm(h3, bn_train_phase, name = 'h3_bn_1')
+            h3 = lrelu(h3, name = 'h3_relu_2')
+            h3 = conv2d(h3, self.config.df_dim * 8, name = 'h3_conv_3')
+            h3 = bnorm(h3, bn_train_phase, name = 'h3_bn_4')
+            h3 = tf.add(h3, h2, name = 'h3_add_5')
+            h3 = tf.nn.max_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_6') # 64 X 64 X 512
         
-            h4 = conv2d(h3, self.config.df_dim * 8, name = 'h4_conv_0')
-            h4 = lrelu(bnorm(h4, bn_train_phase, name = 'h4_bn_1'))
-            image_embeddings = tf.nn.avg_pool(h4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h4_pool_2') #7
-        
-            image_embeddings_h, image_embeddings_w = image_embeddings.get_shape().as_list()[1:3]
-            h4 = lrelu(conv2d(image_embeddings, self.config.dfc_dim, k_h = image_embeddings_h, k_w = image_embeddings_w, padding = 'VALID', name = 'h4_linear_0'))
-            h4 = lrelu(conv2d(h4, self.config.dfc_dim, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_1'))
-            h4 = conv2d(h4, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_2')
-            h4 = tf.sigmoid(h4)
+            h, w = h3.get_shape().as_list()[1:3]
+            h4 = conv2d(h3, self.config.dfc_dim, k_h = h, k_w = w, padding = 'VALID', name = 'h4_linear_0') # 1 X 1 X 1024
+            h4 = lrelu(h4, name = 'h4_relu_1')
+            h4 = conv2d(h4, self.config.dfc_dim / 2, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_2') # 1 X 1 X 512
+            h4 = lrelu(h4, name = 'h4_relu_3')
+            h4 = conv2d(h4, self.config.dfc_dim / 4, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_4') # 1 X 1 X 256
+            h4 = lrelu(h4, name = 'h4_relu_5')
+            h4 = conv2d(h4, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_6') # 1 X 1
             logits = tf.reshape(h4, [self.config.batch_size, -1])
+            scores = tf.tanh(logits)
         
-            return logits
+            return logits, scores
         
     def get_data(self, data_paths, size = None):
         filenames, captions, bboxes, filenames_wrong, bboxes_wrong = self.cubManager.get_captions(data_paths[0], data_paths[1], size)

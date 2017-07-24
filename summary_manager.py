@@ -10,6 +10,9 @@ class SummaryManager(object):
     
     def add_histogram_sum(self, var, name):
         tf.identity(var, name = 'hist_' + name + '/' + self.sum_mark)
+        
+    def add_text_sum(self, var, name):
+        tf.identity(var, name = 'text_' + name + '/' + self.sum_mark)
     
     def get_sum_marked_name(self, name):
         return name + '/' + self.sum_mark
@@ -22,6 +25,7 @@ class SummaryManager(object):
         if net_vars is None:
             return tf.summary.merge([
                 [tf.summary.image(var.name.split('/')[-2].replace(':', '_'), var) for var in self.sum_vars if 'image' in var.name],
+                [tf.summary.text(var.name.split('/')[-2].replace(':', '_'), var) for var in self.sum_vars if 'text' in var.name],
                 [tf.summary.histogram('intermediate_variable_histrogram/'+ var.name.split('/')[-2].replace(':', '_'), var) for var in self.sum_vars if 'hist' in var.name]])
         else:
             if grad_norm is not None:

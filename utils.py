@@ -25,6 +25,7 @@ def get_images(image_paths, idx_range, is_crop = True, crop_mode = 'random', res
             
         image = imread(image_path, is_grayscale)
         if image is None:
+            print image_path
             continue
             
         images.extend([augment(image, is_crop, crop_mode, resize_h, resize_w)])

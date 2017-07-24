@@ -11,7 +11,6 @@ import logging
 flags = tf.app.flags
 flags.DEFINE_integer(   'epoch', 100000, 'Epoch to train [100]')
 flags.DEFINE_integer(   'train_size', np.inf, 'The size of train images [np.inf]')
-flags.DEFINE_integer(   'lr_decay_steps', 100, 'number of epochs to decay lr [100]')
 flags.DEFINE_integer(   'batch_size', 48, 'The size of batch images [24]')
 flags.DEFINE_integer(   'image_size', 512, 'The size of image to use (will be center cropped) [224]')
 flags.DEFINE_integer(   'c_dim', 3, 'Dimension of image color. [3]')
@@ -22,10 +21,11 @@ flags.DEFINE_integer(   'dfc_dim', 1024, 'Dimension of discriminator units for f
 flags.DEFINE_boolean(   'is_train', False, 'True for training, False for testing [False]')
 flags.DEFINE_float(     'learning_rate', 2e-4, 'Learning rate of for adam [0.0002]')
 flags.DEFINE_float(     'lr_decay_rate', 0.5, 'Learning rate decay rate [0.5]')
+flags.DEFINE_integer(   'lr_decay_steps', 100, 'number of epochs to decay lr [100]')
 flags.DEFINE_float(     'dr_rate', 0.5, 'dropout rate [0.5]')
 flags.DEFINE_string(    'optim', 'Adam', 'mode for optimizer [[Adam], RMS]')
 flags.DEFINE_float(     'beta1', 0.9, 'Momentum term of adam [0.9]')
-flags.DEFINE_string(    'criterion', 'mse', 'criterion [[mse], sce]')
+flags.DEFINE_string(    'criterion', 'mse', 'criterion [[mse], abs]')
 
 flags.DEFINE_string(    'root_dir', None, 'Absolute root path to save ..[]')
 flags.DEFINE_string(    'save_abs_path', '/data2/junyonglee/sharpness_test/saves', 'Absolute root path to save the checkpoints [[PATH]/..]')
