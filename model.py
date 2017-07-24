@@ -38,6 +38,15 @@ class DeConvNET(object):
 
         self.criterion = criterion(config.criterion)
         
+        self.r_bn0_1 = batch_norm(name = 'r_bn0_1')
+        self.r_bn0_2 = batch_norm(name = 'r_bn0_2')
+        self.r_bn1_1 = batch_norm(name = 'r_bn1_1')
+        self.r_bn1_2 = batch_norm(name = 'r_bn1_2')
+        self.r_bn2_1 = batch_norm(name = 'r_bn2_1')
+        self.r_bn2_2 = batch_norm(name = 'r_bn2_2')
+        self.r_bn3_1 = batch_norm(name = 'r_bn3_1')
+        self.r_bn3_2 = batch_norm(name = 'r_bn3_2')
+
         self.optimManager = OptimManager(optim='Adam', beta1=self.config.beta1, is_clip=self.config.is_clip, clip_lambda=self.config.clip_lambda)
         self.summaryManager = SummaryManager()
         self.build_model()
@@ -51,7 +60,7 @@ class DeConvNET(object):
         self.build_optim()
         self.build_summary()
         
-        self.build_saver(self.t_vars)
+        self.build_saver()
         if self.config.is_train:
             self.build_writer()
         
@@ -69,7 +78,10 @@ class DeConvNET(object):
         logger.info('Initializing Regressor ...')
         with tf.variable_scope('Regressor') as scope:
             self.logits_pred, self.scores_pred = self.regressor(self.images, bn_train_phase = self.bn_train_phase, scope = scope, reuse = False)
-        logger.info('Initializing Discriminator... DONE')
+            self.logits_pred_sample, self.scores_pred_sample = self.sampler(self.images, bn_train_phase = self.bn_train_phase, scope = scope, reuse = True)
+        logger.info('Initializing Regressor ... DONE')
+        
+        ########## Sampler ##########
         
         logger.info('Initializing NETWORK... DONE\n')
     
@@ -85,12 +97,6 @@ class DeConvNET(object):
     def build_variables(self):
         logger.info('Initializing NETWORK VARIABLE...')
         self.t_vars = tf.trainable_variables()
-        bn_vars = [var for var in tf.contrib.graph_editor.get_tensors(self.sess.graph) if 'moving_mean' in var.name]
-        print "****************"
-        print type(self.t_vars)
-        print "****************"
-        self.t_vars = self.t_vars + bn_vars
-        
         self.r_vars = [var for var in self.t_vars if 'Regressor' in var.name]
         logger.info('Initializing NETWORK VARIABLE... DONE\n')
         
@@ -123,9 +129,8 @@ class DeConvNET(object):
     def build_optim(self):
         ###### Optimizer for network ######
         logger.info('Initializing Optimizer ...')
-        with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-            with tf.variable_scope('Optimizer'):
-                self.r_optim, self.grad_and_vars_r = self.optimManager.get_optim_and_grad_vars(self.lr, self.r_loss, self.r_vars)
+        with tf.variable_scope('Optimizer'):
+            self.r_optim, self.grad_and_vars_r = self.optimManager.get_optim_and_grad_vars(self.lr, self.r_loss, self.r_vars)
         logger.info('Initializing Optimizer ... DONE\n')
     
     def build_summary(self):
@@ -134,9 +139,9 @@ class DeConvNET(object):
         self.r_loss_sum = self.summaryManager.get_merged_summary(self.r_vars, grad_norm = get_grads_norm(self.grad_and_vars_r), name = 'R_loss')
         logger.info('Initializing Summary ... DONE\n')
         
-    def build_saver(self, vars):
+    def build_saver(self):
         logger.info('Loading Saver...')
-        self.saver_train = tf.train.Saver(vars)
+        self.saver_train = tf.train.Saver()
         logger.info('Loading Saver... DONE\n')
         
     def build_writer(self):
@@ -157,12 +162,11 @@ class DeConvNET(object):
         logger.info('Training Starts!')
         it_epoch = trange(self.config.epoch, ncols = 100, initial = 0, desc = 'Epoch')
         for epoch in it_epoch:
-            self.save(self.saver_train, self.config.checkpoint_dir, self.config.model_name, counter)
-            
             train_files, train_scores = self.get_data_train()
 
             batch_idxs = min(len(train_files), self.config.train_size) // self.config.batch_size
-            it_train = trange(batch_idxs, ncols = 100, initial = 0, desc = '[Train]')
+            #it_train = trange(batch_idxs, ncols = 100, initial = 0, desc = '[Train]')
+            it_train = trange(3, ncols = 100, initial = 0, desc = '[Train]')
             for idx in it_train:
                 
                 batch_range = np.arange(idx * self.config.batch_size, (idx + 1) * self.config.batch_size)
@@ -224,8 +228,7 @@ class DeConvNET(object):
         images = get_images(filenames, np.arange(file_num), self.config.is_crop, self.config.crop_mode, self.config.image_size, None, self.config.is_grayscale)
         
         for i in np.arange(file_num):
-            
-            score = self.sess.run(self.logits_pred,
+            score = self.sess.run(self.logits_pred_sample,
                                   feed_dict = {self.dr_rate: self.config.dr_rate, self.bn_train_phase: False,
                                                self.images: np.expand_dims(images[i], axis = 0)})
 
@@ -239,40 +242,98 @@ class DeConvNET(object):
             input = conv2d(input, self.config.df_dim, name = 'h0_input_0')
             
             h0 = conv2d(input, self.config.df_dim, name = 'h0_conv_0')
-            h0 = bnorm(h0, bn_train_phase, name = 'h0_bn_1')
+            h0 = self.r_bn0_1(h0)
             h0 = lrelu(h0, name = 'h0_relu_2')
             h0 = conv2d(h0, self.config.df_dim, name = 'h0_conv_3')
-            h0 = bnorm(h0, bn_train_phase, name = 'h0_bn_4')
+            h0 = self.r_bn0_2(h0)
             h0 = tf.add(h0, input, name = 'h0_add_5')
             h0 = tf.nn.max_pool(h0, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 512 X 512 X 64
             
             h0 = conv2d(h0, self.config.df_dim * 2, name = 'h1_input_0')
             
             h1 = conv2d(h0, self.config.df_dim * 2, name = 'h1_conv_0')
-            h1 = bnorm(h1, bn_train_phase, name = 'h1_bn_1')
+            h1 = self.r_bn1_1(h1)
             h1 = lrelu(h1, name = 'h1_relu_2')
             h1 = conv2d(h1, self.config.df_dim * 2, name = 'h1_conv_3')
-            h1 = bnorm(h1, bn_train_phase, name = 'h1_bn_4')
+            h1 = self.r_bn1_2(h1)
             h1 = tf.add(h1, h0, name = 'h1_add_5')
             h1 = tf.nn.max_pool(h1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h1_pool_6') # 256 X 256 X 128
 
             h1 = conv2d(h1, self.config.df_dim * 4, name = 'h2_input_0')
             
             h2 = conv2d(h1, self.config.df_dim * 4, name = 'h2_conv_0')
-            h2 = bnorm(h2, bn_train_phase, name = 'h2_bn_1')
+            h2 = self.r_bn2_1(h2)
             h2 = lrelu(h2, name = 'h2_relu_2')
             h2 = conv2d(h2, self.config.df_dim * 4, name = 'h2_conv_3')
-            h2 = bnorm(h2, bn_train_phase, name = 'h2_bn_4')
+            h2 = self.r_bn2_2(h2)
             h2 = tf.add(h2, h1, name = 'h2_add_5')
             h2 = tf.nn.max_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 128 X 128 X 256
 
             h2 = conv2d(h2, self.config.df_dim * 8, name = 'h3_input_0')
             
             h3 = conv2d(h2, self.config.df_dim * 8, name = 'h3_conv_0')
-            h3 = bnorm(h3, bn_train_phase, name = 'h3_bn_1')
+            h3 = self.r_bn3_1(h3)
             h3 = lrelu(h3, name = 'h3_relu_2')
             h3 = conv2d(h3, self.config.df_dim * 8, name = 'h3_conv_3')
-            h3 = bnorm(h3, bn_train_phase, name = 'h3_bn_4')
+            h3 = self.r_bn3_2(h3)
+            h3 = tf.add(h3, h2, name = 'h3_add_5')
+            h3 = tf.nn.max_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_6') # 64 X 64 X 512
+        
+            h, w = h3.get_shape().as_list()[1:3]
+            h4 = conv2d(h3, self.config.dfc_dim, k_h = h, k_w = w, padding = 'VALID', name = 'h4_linear_0') # 1 X 1 X 1024
+            h4 = lrelu(h4, name = 'h4_relu_1')
+            h4 = conv2d(h4, self.config.dfc_dim / 2, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_2') # 1 X 1 X 512
+            h4 = lrelu(h4, name = 'h4_relu_3')
+            h4 = conv2d(h4, self.config.dfc_dim / 4, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_4') # 1 X 1 X 256
+            h4 = lrelu(h4, name = 'h4_relu_5')
+            h4 = conv2d(h4, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_6') # 1 X 1
+            logits = tf.reshape(h4, [self.config.batch_size, -1])
+            scores = tf.tanh(logits)
+        
+            return logits, scores
+        
+    def sampler(self, input, bn_train_phase, scope = 'Regressor', reuse = False):
+        with tf.variable_scope(scope) as scope:
+            if reuse:
+                scope.reuse_variables()
+        
+            input = conv2d(input, self.config.df_dim, name = 'h0_input_0')
+        
+            h0 = conv2d(input, self.config.df_dim, name = 'h0_conv_0')
+            h0 = self.r_bn0_1(h0, train = False)
+            h0 = lrelu(h0, name = 'h0_relu_2')
+            h0 = conv2d(h0, self.config.df_dim, name = 'h0_conv_3')
+            h0 = self.r_bn0_2(h0, train = False)
+            h0 = tf.add(h0, input, name = 'h0_add_5')
+            h0 = tf.nn.max_pool(h0, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 512 X 512 X 64
+        
+            h0 = conv2d(h0, self.config.df_dim * 2, name = 'h1_input_0')
+        
+            h1 = conv2d(h0, self.config.df_dim * 2, name = 'h1_conv_0')
+            h1 = self.r_bn1_1(h1, train = False)
+            h1 = lrelu(h1, name = 'h1_relu_2')
+            h1 = conv2d(h1, self.config.df_dim * 2, name = 'h1_conv_3')
+            h1 = self.r_bn1_2(h1, train = False)
+            h1 = tf.add(h1, h0, name = 'h1_add_5')
+            h1 = tf.nn.max_pool(h1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h1_pool_6') # 256 X 256 X 128
+        
+            h1 = conv2d(h1, self.config.df_dim * 4, name = 'h2_input_0')
+        
+            h2 = conv2d(h1, self.config.df_dim * 4, name = 'h2_conv_0')
+            h2 = self.r_bn2_1(h2, train = False)
+            h2 = lrelu(h2, name = 'h2_relu_2')
+            h2 = conv2d(h2, self.config.df_dim * 4, name = 'h2_conv_3')
+            h2 = self.r_bn2_2(h2, train = False)
+            h2 = tf.add(h2, h1, name = 'h2_add_5')
+            h2 = tf.nn.max_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 128 X 128 X 256
+        
+            h2 = conv2d(h2, self.config.df_dim * 8, name = 'h3_input_0')
+        
+            h3 = conv2d(h2, self.config.df_dim * 8, name = 'h3_conv_0')
+            h3 = self.r_bn3_1(h3, train = False)
+            h3 = lrelu(h3, name = 'h3_relu_2')
+            h3 = conv2d(h3, self.config.df_dim * 8, name = 'h3_conv_3')
+            h3 = self.r_bn3_2(h3, train = False)
             h3 = tf.add(h3, h2, name = 'h3_add_5')
             h3 = tf.nn.max_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_6') # 64 X 64 X 512
         
