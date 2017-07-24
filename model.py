@@ -39,6 +39,13 @@ class DeConvNET(object):
         
         self.optimManager = OptimManager(optim='Adam', beta1=self.config.beta1, is_clip=self.config.is_clip, clip_lambda=self.config.clip_lambda)
         self.summaryManager = SummaryManager()
+        
+        self.r_bn0 = batch_norm('r_bn_0')
+        self.r_bn1 = batch_norm('r_bn_1')
+        self.r_bn2 = batch_norm('r_bn_2')
+        self.r_bn3 = batch_norm('r_bn_3')
+        self.r_bn4 = batch_norm('r_bn_4')
+        
         self.build_model()
         
     def build_model(self):
@@ -215,23 +222,23 @@ class DeConvNET(object):
                 scope.reuse_variables()
         
             h0 = conv2d(input, self.config.df_dim, name = 'h0_conv_0')
-            h0 = lrelu(bnorm(h0, bn_train_phase, name = 'h0_bn_1'))
+            h0 = lrelu(self.r_bn0(h0))
             h0 = tf.nn.avg_pool(h0, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_2') #112
         
             h1 = conv2d(h0, self.config.df_dim * 2, name = 'h1_conv_0')
-            h1 = lrelu(bnorm(h1, bn_train_phase, name = 'h1_bn_1'))
+            h1 = lrelu(self.r_bn1(h1))
             h1 = tf.nn.avg_pool(h1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h1_pool_2') #56
         
             h2 = conv2d(h1, self.config.df_dim * 4, name = 'h2_conv_0')
-            h2 = lrelu(bnorm(h2, bn_train_phase, name = 'h2_bn_1'))
+            h2 = lrelu(self.r_bn2(h2))
             h2 = tf.nn.avg_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h2_pool_2') #28
         
             h3 = conv2d(h2, self.config.df_dim * 8, name = 'h3_conv_0')
-            h3 = lrelu(bnorm(h3, bn_train_phase, name = 'h3_bn_1'))
+            h3 = lrelu(self.r_bn2(h3))
             h3 = tf.nn.avg_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_2') #14
         
             h4 = conv2d(h3, self.config.df_dim * 8, name = 'h4_conv_0')
-            h4 = lrelu(bnorm(h4, bn_train_phase, name = 'h4_bn_1'))
+            h4 = lrelu(self.r_bn4(h4))
             image_embeddings = tf.nn.avg_pool(h4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h4_pool_2') #7
         
             image_embeddings_h, image_embeddings_w = image_embeddings.get_shape().as_list()[1:3]
