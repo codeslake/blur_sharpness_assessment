@@ -5,6 +5,7 @@ import datetime
 from glob import glob
 from six.moves import xrange
 import fnmatch
+import pickle
 
 import tensorflow as tf
 import numpy as np
@@ -51,7 +52,8 @@ class DeConvNET(object):
         self.build_summary()
         
         self.build_saver(self.t_vars)
-        self.build_writer()
+        if self.config.is_train:
+            self.build_writer()
         
     def build_network(self):
         logger.info('Initializing NETWORK...')
@@ -83,6 +85,12 @@ class DeConvNET(object):
     def build_variables(self):
         logger.info('Initializing NETWORK VARIABLE...')
         self.t_vars = tf.trainable_variables()
+        bn_vars = [var for var in tf.contrib.graph_editor.get_tensors(self.sess.graph) if 'moving_mean' in var.name]
+        print "****************"
+        print type(self.t_vars)
+        print "****************"
+        self.t_vars = self.t_vars + bn_vars
+        
         self.r_vars = [var for var in self.t_vars if 'Regressor' in var.name]
         logger.info('Initializing NETWORK VARIABLE... DONE\n')
         
@@ -149,6 +157,7 @@ class DeConvNET(object):
         logger.info('Training Starts!')
         it_epoch = trange(self.config.epoch, ncols = 100, initial = 0, desc = 'Epoch')
         for epoch in it_epoch:
+            self.save(self.saver_train, self.config.checkpoint_dir, self.config.model_name, counter)
             
             train_files, train_scores = self.get_data_train()
 
@@ -202,25 +211,26 @@ class DeConvNET(object):
             logger.info(' [*] Load SUCCESS')
         else:
             logger.info(' [!] Load failed...')
+            return
 
-        '''
-        if self.config.dataset == 'MSCOCO':
-        elif self.config.dataset == 'bird':
-        samples_cap, samples_img, loss = self.sess.run(
-            [self.sample_from_caption_embeddings, self.sample_from_Image_embeddings, self.loss],
-            feed_dict = {self.images: val_images, self.captions: val_captions}
-        )
-        
-        timestr = time.strftime("%m/%d_%H:%M")
+        with open('/data1/AVA/AVA_classified/255000/filenames_test.pickle', 'rb') as f:
+            filenames = np.array(pickle.load(f)) #[file_num]
 
-        output_size = np.int32(np.ceil(np.sqrt(self.config.batch_size)))
-        save_images(samples_cap, [output_size, output_size],
-                    '{}/train_{}_caption_{}.png'.format(self.config.sample_dir, self.config.dataset, timestr))
-        save_images(samples_img, [output_size, output_size],
-                    '{}/train_{}_gt_{}.png'.format(self.config.sample_dir, self.config.dataset, timestr))
-        print('[Sample] loss: %.8f' % (loss))
-        '''
+        with open('/data1/AVA/AVA_classified/255000/scores_test.pickle', 'rb') as f:
+            scores = np.array(pickle.load(f)) #[file_num]
+
+        file_num = filenames.shape[0]
+        print "[shape]: " + str(filenames.shape[0])
+        images = get_images(filenames, np.arange(file_num), self.config.is_crop, self.config.crop_mode, self.config.image_size, None, self.config.is_grayscale)
         
+        for i in np.arange(file_num):
+            
+            score = self.sess.run(self.logits_pred,
+                                  feed_dict = {self.dr_rate: self.config.dr_rate, self.bn_train_phase: False,
+                                               self.images: np.expand_dims(images[i], axis = 0)})
+
+            print '[filename]: ' + filenames[i] + ' [score_predicted]: ' + str(score) + " [ground_truth]: " + str(scores[i])
+            
     def regressor(self, input, bn_train_phase, scope = 'Regressor', reuse = False):
         with tf.variable_scope(scope) as scope:
             if reuse:

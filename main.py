@@ -72,8 +72,8 @@ def main(_):
 
     with tf.Session() as sess:
         logger.info('Initializing Network')
-        deconvnet = DeConvNET(sess, FLAGS)
 
+        deconvnet = DeConvNET(sess, FLAGS)
         if FLAGS.is_train:
             deconvnet.train()
         else:

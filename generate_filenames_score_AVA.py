@@ -8,6 +8,7 @@ import sys
 def generate_data_pickle(abs_path, filenames, scores, label):
     print "writing .."
 
+    '''
     filenum = filenames.shape[0]
     valnum = 100
     s0 = np.arange(filenum)
@@ -24,7 +25,7 @@ def generate_data_pickle(abs_path, filenames, scores, label):
     sum(train_scores, 'train_scores')
     sum(val_scores, 'val_scores')
     
-    postfix = '_scaled'
+    postfix = ''
     with open(abs_path + '/' + label + postfix + '_filenames_train.pickle', 'w') as f:
         pickle.dump(train_filenames, f)
     with open(abs_path + '/' + label + postfix + '_filenames_val.pickle', 'w') as f:
@@ -34,7 +35,13 @@ def generate_data_pickle(abs_path, filenames, scores, label):
         pickle.dump(train_scores, f)
     with open(abs_path + '/' + label + postfix + '_scores_val.pickle', 'w') as f:
         pickle.dump(val_scores, f)
-        
+    '''
+    
+    with open(abs_path + '/filenames_test.pickle', 'w') as f:
+        pickle.dump(filenames, f)
+    with open(abs_path + '/scores_test.pickle', 'w') as f:
+        pickle.dump(scores, f)
+    
     print "writing .. Done"
 
 def get_data(abs_path, image_path, label_filename):
@@ -80,7 +87,7 @@ def main():
     
     print abs_path
 
-    label = 'motion_blur'
+    label = 'motion_blur_test'
     label_filename = label + '.txt'
     image_path = '/data1/AVA/image'
     
