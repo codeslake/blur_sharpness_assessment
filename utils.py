@@ -156,7 +156,6 @@ def get_image_names_in_dir(path):
 def get_image_path_in_dir(path):
     file_path = []
     for root, dirnames, filenames in os.walk(path):
-        '''
         for filename in fnmatch.filter(filenames, '/*.JPEG'):
             file_path.append(os.path.join(root, filename))
         for filename in fnmatch.filter(filenames, '/*.PNG'):
@@ -165,8 +164,7 @@ def get_image_path_in_dir(path):
             file_path.append(os.path.join(root, filename))
         for filename in fnmatch.filter(filenames, '/*.png'):
             file_path.append(os.path.join(root, filename))
-        '''
-        for filename in fnmatch.filter(filenames, '/*.jpg'):
+        for filename in fnmatch.filter(filenames, '*.jpg'):
             file_path.append(os.path.join(root, filename))
     
     return file_path

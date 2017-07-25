@@ -5,7 +5,7 @@ import pickle
 import scipy.misc
 import sys
 
-def generate_data_pickle(abs_path, filenames, scores, label):
+def generate_data_pickle(abs_path, filenames, scores, label, postfix):
     print "writing .."
 
     '''
@@ -25,7 +25,6 @@ def generate_data_pickle(abs_path, filenames, scores, label):
     sum(train_scores, 'train_scores')
     sum(val_scores, 'val_scores')
     
-    postfix = ''
     with open(abs_path + '/' + label + postfix + '_filenames_train.pickle', 'w') as f:
         pickle.dump(train_filenames, f)
     with open(abs_path + '/' + label + postfix + '_filenames_val.pickle', 'w') as f:
@@ -36,7 +35,6 @@ def generate_data_pickle(abs_path, filenames, scores, label):
     with open(abs_path + '/' + label + postfix + '_scores_val.pickle', 'w') as f:
         pickle.dump(val_scores, f)
     '''
-    
     with open(abs_path + '/filenames_test.pickle', 'w') as f:
         pickle.dump(filenames, f)
     with open(abs_path + '/scores_test.pickle', 'w') as f:
@@ -71,7 +69,7 @@ def get_data(abs_path, image_path, label_filename):
         filenames.extend([os.path.join(image_path, str(filename) + '.jpg')])
 
         score = np.array(df_scores.iloc[i][2:12].tolist())
-        score = (np.sum((weights * score)) / float(np.sum(score))) - 5.
+        score = np.sum((weights * score)) / float(np.sum(score)) / 10.
         scores.extend([score])
         
     return np.array(filenames), np.array(scores)
@@ -83,11 +81,12 @@ def sum(list, name):
     print 'Sample :', list[0], '\n'
 
 def main():
-    abs_path = '/data1/AVA/AVA_classified/255000'
+    abs_path = '/data1/AVA/AVA_classified/255000/test'
     
     print abs_path
 
-    label = 'motion_blur_test'
+    label = 'defocus_blur_test'
+    postfix = ''
     label_filename = label + '.txt'
     image_path = '/data1/AVA/image'
     
@@ -95,7 +94,7 @@ def main():
     sum(filenames, 'filenames')
     sum(scores, 'scores')
 
-    generate_data_pickle(abs_path, filenames, scores, label)
+    generate_data_pickle(abs_path, filenames, scores, label, postfix)
 
 if __name__ == "__main__":
     main()

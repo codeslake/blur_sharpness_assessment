@@ -165,8 +165,8 @@ class DeConvNET(object):
             train_files, train_scores = self.get_data_train()
 
             batch_idxs = min(len(train_files), self.config.train_size) // self.config.batch_size
-            #it_train = trange(batch_idxs, ncols = 100, initial = 0, desc = '[Train]')
-            it_train = trange(3, ncols = 100, initial = 0, desc = '[Train]')
+            it_train = trange(batch_idxs, ncols = 100, initial = 0, desc = '[Train]')
+            #it_train = trange(3, ncols = 100, initial = 0, desc = '[Train]')
             for idx in it_train:
                 
                 batch_range = np.arange(idx * self.config.batch_size, (idx + 1) * self.config.batch_size)
@@ -217,22 +217,28 @@ class DeConvNET(object):
             logger.info(' [!] Load failed...')
             return
 
-        with open('/data1/AVA/AVA_classified/255000/filenames_test.pickle', 'rb') as f:
+        """
+        with open('/data1/AVA/AVA_classified/255000/test/filenames_test.pickle', 'rb') as f:
             filenames = np.array(pickle.load(f)) #[file_num]
 
-        with open('/data1/AVA/AVA_classified/255000/scores_test.pickle', 'rb') as f:
+        with open('/data1/AVA/AVA_classified/255000/test/scores_test.pickle', 'rb') as f:
             scores = np.array(pickle.load(f)) #[file_num]
+        """
+        abs_path = '/data1/AVA/AVA_classified/255000/test/out_of_focus'
+        filenames = get_image_path_in_dir(abs_path)
+        filenames = np.array(filenames)
 
         file_num = filenames.shape[0]
         print "[shape]: " + str(filenames.shape[0])
         images = get_images(filenames, np.arange(file_num), self.config.is_crop, self.config.crop_mode, self.config.image_size, None, self.config.is_grayscale)
-        
+
         for i in np.arange(file_num):
             score = self.sess.run(self.logits_pred_sample,
                                   feed_dict = {self.dr_rate: self.config.dr_rate, self.bn_train_phase: False,
                                                self.images: np.expand_dims(images[i], axis = 0)})
 
-            print '[filename]: ' + filenames[i] + ' [score_predicted]: ' + str(score) + " [ground_truth]: " + str(scores[i])
+            #print '[filename]: ' + filenames[i] + ' [score_predicted]: ' + str(score) + " [ground_truth]: " + str(scores[i])
+            print '[filename]: ' + filenames[i] + ' [score_predicted]: ' + str(score)
             
     def regressor(self, input, bn_train_phase, scope = 'Regressor', reuse = False):
         with tf.variable_scope(scope) as scope:
