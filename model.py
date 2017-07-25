@@ -192,6 +192,10 @@ class DeConvNET(object):
                 it_train.set_description(('[Train] epoch: %d, r_loss: %.4f' % (epoch, r_loss)))
                 
                 counter += 1
+
+                # save checkpoint
+                if np.mod(idx, 1000) == 0:
+                    self.save(self.saver_train, self.config.checkpoint_dir, self.config.model_name, counter)
             
             # validation
             if np.mod(epoch, 1) == 0:
@@ -275,25 +279,13 @@ class DeConvNET(object):
             h2 = tf.add(h2, h1, name = 'h2_add_5')
             h2 = tf.nn.max_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 128 X 128 X 256
 
-            h2 = conv2d(h2, self.config.df_dim * 8, name = 'h3_input_0')
-            
-            h3 = conv2d(h2, self.config.df_dim * 8, name = 'h3_conv_0')
-            h3 = self.r_bn3_1(h3)
-            h3 = lrelu(h3, name = 'h3_relu_2')
-            h3 = conv2d(h3, self.config.df_dim * 8, name = 'h3_conv_3')
-            h3 = self.r_bn3_2(h3)
-            h3 = tf.add(h3, h2, name = 'h3_add_5')
-            h3 = tf.nn.max_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_6') # 64 X 64 X 512
-        
-            h, w = h3.get_shape().as_list()[1:3]
-            h4 = conv2d(h3, self.config.dfc_dim, k_h = h, k_w = w, padding = 'VALID', name = 'h4_linear_0') # 1 X 1 X 1024
-            h4 = lrelu(h4, name = 'h4_relu_1')
-            h4 = conv2d(h4, self.config.dfc_dim / 2, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_2') # 1 X 1 X 512
-            h4 = lrelu(h4, name = 'h4_relu_3')
-            h4 = conv2d(h4, self.config.dfc_dim / 4, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_4') # 1 X 1 X 256
-            h4 = lrelu(h4, name = 'h4_relu_5')
-            h4 = conv2d(h4, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_6') # 1 X 1
-            logits = tf.reshape(h4, [self.config.batch_size, -1])
+            h, w = h2.get_shape().as_list()[1:3]
+            h3 = conv2d(h2, self.config.dfc_dim / 4, k_h = h, k_w = w, padding = 'VALID', name = 'h4_linear_0') # 1 X 1 X 256
+            h3 = lrelu(h3, name = 'h4_relu_1')
+            h3 = conv2d(h3, self.config.dfc_dim / 16, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_4') # 1 X 1 X 64
+            h3 = lrelu(h3, name = 'h4_relu_5')
+            h3 = conv2d(h3, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_6') # 1 X 1
+            logits = tf.reshape(h3, [self.config.batch_size, -1])
             scores = tf.tanh(logits)
         
             return logits, scores
@@ -333,28 +325,17 @@ class DeConvNET(object):
             h2 = tf.add(h2, h1, name = 'h2_add_5')
             h2 = tf.nn.max_pool(h2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h0_pool_6') # 128 X 128 X 256
         
-            h2 = conv2d(h2, self.config.df_dim * 8, name = 'h3_input_0')
-        
-            h3 = conv2d(h2, self.config.df_dim * 8, name = 'h3_conv_0')
-            h3 = self.r_bn3_1(h3, train = False)
-            h3 = lrelu(h3, name = 'h3_relu_2')
-            h3 = conv2d(h3, self.config.df_dim * 8, name = 'h3_conv_3')
-            h3 = self.r_bn3_2(h3, train = False)
-            h3 = tf.add(h3, h2, name = 'h3_add_5')
-            h3 = tf.nn.max_pool(h3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='h3_pool_6') # 64 X 64 X 512
-        
-            h, w = h3.get_shape().as_list()[1:3]
-            h4 = conv2d(h3, self.config.dfc_dim, k_h = h, k_w = w, padding = 'VALID', name = 'h4_linear_0') # 1 X 1 X 1024
-            h4 = lrelu(h4, name = 'h4_relu_1')
-            h4 = conv2d(h4, self.config.dfc_dim / 2, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_2') # 1 X 1 X 512
-            h4 = lrelu(h4, name = 'h4_relu_3')
-            h4 = conv2d(h4, self.config.dfc_dim / 4, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_4') # 1 X 1 X 256
-            h4 = lrelu(h4, name = 'h4_relu_5')
-            h4 = conv2d(h4, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_6') # 1 X 1
-            logits = tf.reshape(h4, [self.config.batch_size, -1])
+            h, w = h2.get_shape().as_list()[1:3]
+            h3 = conv2d(h2, self.config.dfc_dim / 4, k_h = h, k_w = w, padding = 'VALID', name = 'h4_linear_0') # 1 X 1 X 256
+            h3 = lrelu(h3, name = 'h4_relu_1')
+            h3 = conv2d(h3, self.config.dfc_dim / 16, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_4') # 1 X 1 X 64
+            h3 = lrelu(h3, name = 'h4_relu_5')
+            h3 = conv2d(h3, 1, k_h = 1, k_w = 1, padding = 'VALID', name = 'h4_linear_6') # 1 X 1
+            logits = tf.reshape(h3, [self.config.batch_size, -1])
             scores = tf.tanh(logits)
         
             return logits, scores
+        
         
     def get_data(self, data_paths, size = None):
         filenames, captions, bboxes, filenames_wrong, bboxes_wrong = self.cubManager.get_captions(data_paths[0], data_paths[1], size)
