@@ -25,11 +25,11 @@ cd blur_sharpness_assessment
 
 ## Training and Test Details
 - you need to specify directories for dataset, checkpoint and sample in main.py
-To train a model,  
+- To train a model,  
 ```bash
 python main.py --is_train=True
 ```
-To test the model,
+- To test the model,
 ```bash
 python main.py --is_train=False
 ```
