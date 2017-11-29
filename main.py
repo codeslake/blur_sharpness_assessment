@@ -11,7 +11,7 @@ import logging
 flags = tf.app.flags
 flags.DEFINE_integer(   'epoch', 100000, 'Epoch to train [100]')
 flags.DEFINE_integer(   'train_size', np.inf, 'The size of train images [np.inf]')
-flags.DEFINE_integer(   'batch_size', 48, 'The size of batch images [24]')
+flags.DEFINE_integer(   'batch_size', 2, 'The size of batch images [24]')
 flags.DEFINE_integer(   'image_size', 512, 'The size of image to use (will be center cropped) [224]')
 flags.DEFINE_integer(   'c_dim', 3, 'Dimension of image color. [3]')
 flags.DEFINE_integer(   'gf_dim', 64, 'Number of conv in the first layer generator. [64]')
@@ -29,9 +29,9 @@ flags.DEFINE_string(    'criterion', 'mse', 'criterion [[mse], abs]')
 
 flags.DEFINE_string(    'root_dir', None, 'Absolute root path to save ..[]')
 flags.DEFINE_string(    'save_abs_path', '/data2/junyonglee/sharpness_test/saves', 'Absolute root path to save the checkpoints [[PATH]/..]')
-flags.DEFINE_string(    'model_name', 'bsim', 'model name')
+flags.DEFINE_string(    'model_name', 'sharpness_test', 'model name')
 flags.DEFINE_string(    'dataset', 'AVA', 'The name of dataset [AVA]')
-flags.DEFINE_string(    'type', 'defocus_blur', 'The name of dataset type[defocus_blur], motion_blur, others')
+flags.DEFINE_string(    'type', 'defocus_blur_0_1', 'The name of dataset type[defocus_blur], motion_blur, others')
 flags.DEFINE_string(    'checkpoint_dir', 'checkpoint', 'Directory name to save the checkpoints [checkpoint]')
 flags.DEFINE_string(    'log_dir', 'logs', 'Directory name to save the log [logs]')
 flags.DEFINE_string(    'sample_dir', 'samples', 'Directory name to save the image samples [samples]')
@@ -75,8 +75,10 @@ def main(_):
 
         deconvnet = DeConvNET(sess, FLAGS)
         if FLAGS.is_train:
+            print "Train"
             deconvnet.train()
         else:
+            print "Test"
             deconvnet.test()
 
 if __name__ == '__main__':
